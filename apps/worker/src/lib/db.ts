@@ -13,7 +13,7 @@ db.on('error', (err) => {
   logger.error({ error: err }, 'Unexpected database error');
 });
 
-export async function query<T = unknown>(
+export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
   text: string,
   params?: unknown[]
 ): Promise<pg.QueryResult<T>> {

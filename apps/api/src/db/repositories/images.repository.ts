@@ -13,7 +13,7 @@ import {
   mapEntityToSnake,
 } from './base.repository.js';
 
-interface ImageEntity extends Image {
+export interface ImageEntity extends Image {
   createdAt: Date;
   updatedAt: Date;
 }

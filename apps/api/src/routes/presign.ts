@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { presignRateLimit } from '../middleware/rate-limit.js';
 import * as presignService from '../services/presign.service.js';
 import { ValidationError } from '../middleware/error-handler.js';
 import { validatePresignRequest, HTTP_STATUS } from '@360-imaging/shared';
 
-export const presignRouter = Router();
+export const presignRouter: RouterType = Router();
 
 presignRouter.use(authenticate);
 presignRouter.use(presignRateLimit);

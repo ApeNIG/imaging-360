@@ -87,7 +87,7 @@ export async function withOrgContext<T>(
 /**
  * Query helper with automatic parameter binding and logging
  */
-export async function query<T = unknown>(
+export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
   text: string,
   params?: unknown[]
 ): Promise<pg.QueryResult<T>> {

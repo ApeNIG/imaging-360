@@ -73,9 +73,11 @@ function extractExif(metadata: sharp.Metadata): ImageExif | undefined {
 
   try {
     // Sharp provides limited EXIF, but we can get basics
+    // Note: make/model may not be directly on metadata - would need exifr for full EXIF
+    const metaAny = metadata as Record<string, unknown>;
     return {
-      cameraMake: metadata.make,
-      cameraModel: metadata.model,
+      cameraMake: metaAny.make as string | undefined,
+      cameraModel: metaAny.model as string | undefined,
       // Note: Full EXIF extraction would require exifr or similar library
     };
   } catch {

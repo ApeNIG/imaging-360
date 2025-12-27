@@ -13,7 +13,7 @@ import { eventsRouter } from './routes/events.js';
 import { sitesRouter } from './routes/sites.js';
 import { healthRouter } from './routes/health.js';
 
-export function createServer() {
+export function createServer(): express.Express {
   const app = express();
 
   // Security middleware

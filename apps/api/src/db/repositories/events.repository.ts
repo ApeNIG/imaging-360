@@ -7,7 +7,7 @@ import {
   mapEntityToSnake,
 } from './base.repository.js';
 
-interface EventEntity extends Event {
+export interface EventEntity extends Event {
   createdAt: Date;
 }
 

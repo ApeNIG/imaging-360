@@ -156,7 +156,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
   /**
    * Execute raw query with org_id parameter
    */
-  protected async rawQuery<R = unknown>(
+  protected async rawQuery<R extends pg.QueryResultRow = pg.QueryResultRow>(
     sql: string,
     params: unknown[]
   ): Promise<pg.QueryResult<R>> {

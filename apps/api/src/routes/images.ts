@@ -1,11 +1,12 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { authenticate, requireUser, requireRole } from '../middleware/auth.js';
 import { defaultRateLimit } from '../middleware/rate-limit.js';
 import * as imagesService from '../services/images.service.js';
 import { ValidationError } from '../middleware/error-handler.js';
 import { isValidUUID, HTTP_STATUS } from '@360-imaging/shared';
+import type { ImageStatus } from '@360-imaging/shared';
 
-export const imagesRouter = Router();
+export const imagesRouter: RouterType = Router();
 
 imagesRouter.use(authenticate);
 imagesRouter.use(requireUser);
@@ -23,7 +24,7 @@ imagesRouter.get('/', async (req, res, next) => {
     const images = await imagesService.listImages({
       orgId: req.auth!.orgId,
       sessionId: sessionId as string,
-      status: status as string,
+      status: status as ImageStatus | undefined,
     });
 
     res.status(HTTP_STATUS.OK).json(images);

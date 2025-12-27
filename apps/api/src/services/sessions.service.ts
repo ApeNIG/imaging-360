@@ -1,6 +1,7 @@
 import { NotFoundError } from '../middleware/error-handler.js';
 import { DEFAULT_SHOT_LIST } from '@360-imaging/shared';
-import type { SessionWithDetails, CaptureMode, SessionStatus, ShotList } from '@360-imaging/shared';
+import type { CaptureMode, SessionStatus, ShotList } from '@360-imaging/shared';
+import type { SessionWithDetails } from '../db/repositories/sessions.repository.js';
 import {
   sessionsRepository,
   vehiclesRepository,
@@ -68,10 +69,10 @@ export async function createSession(params: CreateSessionParams): Promise<Sessio
   );
 
   // Create session with default shot list if not provided
-  const finalShotList = shotList || (
+  const finalShotList: ShotList = shotList || (
     mode === 'studio360'
-      ? { studio360: DEFAULT_SHOT_LIST.studio360 }
-      : { stills: DEFAULT_SHOT_LIST.stills }
+      ? { studio360: { ...DEFAULT_SHOT_LIST.studio360 } }
+      : { stills: [...DEFAULT_SHOT_LIST.stills].map(s => ({ ...s })) }
   );
 
   const session = await sessionsRepository.create(

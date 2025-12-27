@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { authenticate, requireUser } from '../middleware/auth.js';
 import { sitesRepository } from '../db/repositories/index.js';
 import type { UserJwtPayload } from '@360-imaging/shared';
 import { HTTP_STATUS } from '@360-imaging/shared';
 
-export const sitesRouter = Router();
+export const sitesRouter: RouterType = Router();
 
 // All sites routes require user authentication
 sitesRouter.use(authenticate, requireUser);

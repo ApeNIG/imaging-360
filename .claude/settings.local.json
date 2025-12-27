@@ -3,7 +3,28 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(gh auth status:*)",
+      "Bash(git remote add:*)",
+      "Bash(git fetch:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git push:*)",
+      "Bash(git branch:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm --filter @360-imaging/portal exec tsc:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Docker containerization for all services\n\n- Add Dockerfiles for API, Worker, and Portal services\n- Create docker-compose.yml with PostgreSQL, LocalStack, and all app services\n- Add LocalStack init script for S3 bucket and SQS queue setup\n- Update S3/SQS clients to support AWS_ENDPOINT for LocalStack\n- Add .dockerignore to optimize builds\n- Update .env.example with LocalStack configuration\n\nRun with: docker-compose up --build\n\n🤖 Generated with [Claude Code]\\(https://claude.ai/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(docker-compose up:*)",
+      "Bash(where pnpm:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --filter @360-imaging/api exec tsc:*)",
+      "Bash(pnpm --filter @360-imaging/shared build:*)",
+      "Bash(pnpm --filter @360-imaging/worker exec tsc:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -1,11 +1,12 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { authenticate, requireSiteAccess } from '../middleware/auth.js';
 import { defaultRateLimit } from '../middleware/rate-limit.js';
 import * as sessionsService from '../services/sessions.service.js';
 import { ValidationError } from '../middleware/error-handler.js';
 import { validateCreateSession, HTTP_STATUS } from '@360-imaging/shared';
+import type { SessionStatus } from '@360-imaging/shared';
 
-export const sessionsRouter = Router();
+export const sessionsRouter: RouterType = Router();
 
 // All routes require authentication
 sessionsRouter.use(authenticate);
@@ -18,9 +19,9 @@ sessionsRouter.get('/', async (req, res, next) => {
 
     const sessions = await sessionsService.listSessions({
       orgId: req.auth!.orgId,
-      siteId: siteId as string,
-      status: status as string,
-      vehicleId: vehicleId as string,
+      siteId: siteId as string | undefined,
+      status: status as SessionStatus | undefined,
+      vehicleId: vehicleId as string | undefined,
       limit: limit ? parseInt(limit as string, 10) : 50,
       offset: offset ? parseInt(offset as string, 10) : 0,
       userSiteIds: req.auth!.role !== 'device' ? (req.auth as any).siteIds : undefined,
@@ -78,14 +79,12 @@ sessionsRouter.get('/:id', async (req, res, next) => {
 // PATCH /sessions/:id - Update session
 sessionsRouter.patch('/:id', async (req, res, next) => {
   try {
-    const { status, completedAt, abandonedAt } = req.body;
+    const { status } = req.body;
 
     const session = await sessionsService.updateSession({
       sessionId: req.params.id,
       orgId: req.auth!.orgId,
       status,
-      completedAt,
-      abandonedAt,
     });
 
     res.status(HTTP_STATUS.OK).json(session);

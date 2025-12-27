@@ -16,5 +16,5 @@ export { usersRepository, UsersRepository, UserWithSiteAccess } from './users.re
 export { devicesRepository, DevicesRepository } from './devices.repository.js';
 export { vehiclesRepository, VehiclesRepository } from './vehicles.repository.js';
 export { sessionsRepository, SessionsRepository, SessionWithDetails, SessionFilter } from './sessions.repository.js';
-export { imagesRepository, ImagesRepository, ImageFilter } from './images.repository.js';
-export { eventsRepository, EventsRepository, EventFilter } from './events.repository.js';
+export { imagesRepository, ImagesRepository, ImageFilter, ImageEntity } from './images.repository.js';
+export { eventsRepository, EventsRepository, EventFilter, EventEntity } from './events.repository.js';

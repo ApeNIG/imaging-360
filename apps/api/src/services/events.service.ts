@@ -1,5 +1,5 @@
 import type { CreateEventRequest, ActorType, EntityType, EventType } from '@360-imaging/shared';
-import { eventsRepository } from '../db/index.js';
+import { eventsRepository, EventEntity } from '../db/index.js';
 import { logger } from '../lib/logger.js';
 
 interface CreateEventParams extends CreateEventRequest {
@@ -63,12 +63,15 @@ export async function getEventsByEntity(
   entityType: EntityType,
   entityId: string,
   orgId: string
-) {
+): Promise<{ data: EventEntity[]; total: number }> {
   const events = await eventsRepository.findByEntity(entityType, entityId, { orgId });
   return { data: events, total: events.length };
 }
 
-export async function getSessionTimeline(sessionId: string, orgId: string) {
+export async function getSessionTimeline(
+  sessionId: string,
+  orgId: string
+): Promise<{ data: EventEntity[]; total: number }> {
   const events = await eventsRepository.findSessionTimeline(sessionId, { orgId });
   return { data: events, total: events.length };
 }

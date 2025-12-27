@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { authDeviceRateLimit } from '../middleware/rate-limit.js';
 import * as authService from '../services/auth.service.js';
 import { ValidationError } from '../middleware/error-handler.js';
 import { HTTP_STATUS } from '@360-imaging/shared';
 
-export const authRouter = Router();
+export const authRouter: RouterType = Router();
 
 // POST /auth/device - Device enrollment/refresh
 authRouter.post('/device', authDeviceRateLimit, async (req, res, next) => {

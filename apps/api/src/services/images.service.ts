@@ -1,7 +1,7 @@
 import { NotFoundError, AppError } from '../middleware/error-handler.js';
 import { HTTP_STATUS } from '@360-imaging/shared';
 import type { Image, ImageStatus, PublishResponse } from '@360-imaging/shared';
-import { imagesRepository, sessionsRepository, eventsRepository } from '../db/index.js';
+import { imagesRepository, sessionsRepository, eventsRepository, ImageEntity } from '../db/index.js';
 import { logger } from '../lib/logger.js';
 
 interface ListImagesParams {
@@ -21,7 +21,11 @@ interface PublishImageParams {
   userId?: string;
 }
 
-export async function listImages(params: ListImagesParams) {
+export async function listImages(params: ListImagesParams): Promise<{
+  data: ImageEntity[];
+  total: number;
+  statusCounts: Record<ImageStatus, number>;
+}> {
   const { orgId, sessionId, status } = params;
 
   // Verify session exists

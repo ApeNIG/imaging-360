@@ -14,7 +14,7 @@ export function SessionDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
-  const pollRef = useRef<NodeJS.Timeout>();
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   // Get publishable images (processed with pass or warn QC)
   const publishableImages = images.filter((img) => {
