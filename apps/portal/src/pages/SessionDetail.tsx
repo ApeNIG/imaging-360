@@ -1,9 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '@/lib/api';
+import { api, DEMO_MODE } from '@/lib/api';
+import { getImageUrl } from '@/lib/mockData';
 import { PORTAL_POLL_INTERVAL_MS } from '@360-imaging/shared';
 import type { SessionWithDetails, Image } from '@360-imaging/shared';
 import { Viewer360 } from '@/components/Viewer360';
+
+// Helper to get image URL (demo or real)
+const getThumbnailUrl = (image: Image, size: '150' | '600' | '1200' = '600'): string => {
+  if (DEMO_MODE) {
+    return getImageUrl(image.storageKey, size);
+  }
+  const thumbKey = image.thumbKeys?.[size] || image.thumbKeys?.['600'];
+  return thumbKey ? `/api/thumbnails/${thumbKey}` : '';
+};
 
 export function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -227,9 +237,9 @@ export function SessionDetailPage() {
               className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500"
               onClick={() => setSelectedImage(image)}
             >
-              {image.thumbKeys?.['600'] ? (
+              {(DEMO_MODE || image.thumbKeys?.['600']) ? (
                 <img
-                  src={`/api/thumbnails/${image.thumbKeys['600']}`}
+                  src={getThumbnailUrl(image, '600')}
                   alt={`Frame ${image.angleDeg || image.shotName}`}
                   className="w-full h-full object-cover"
                 />
@@ -275,13 +285,11 @@ export function SessionDetailPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="aspect-video bg-gray-100">
-              {selectedImage.thumbKeys?.['1200'] && (
-                <img
-                  src={`/api/thumbnails/${selectedImage.thumbKeys['1200']}`}
-                  alt="Full size"
-                  className="w-full h-full object-contain"
-                />
-              )}
+              <img
+                src={getThumbnailUrl(selectedImage, '1200')}
+                alt="Full size"
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="p-4 flex justify-between items-center">
               <div>

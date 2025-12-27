@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth';
+import { DEMO_MODE } from '@/lib/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -29,6 +30,11 @@ export function LoginPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to your account
           </p>
+          {DEMO_MODE && (
+            <div className="mt-4 bg-green-100 text-green-800 px-3 py-2 rounded-md text-sm text-center">
+              Demo Mode - Use any email/password
+            </div>
+          )}
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

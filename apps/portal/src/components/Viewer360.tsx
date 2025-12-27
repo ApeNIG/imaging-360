@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Image } from '@360-imaging/shared';
+import { DEMO_MODE } from '@/lib/api';
+import { getImageUrl } from '@/lib/mockData';
+
+// Helper to get image URL (demo or real)
+const getThumbnailUrl = (image: Image, size: '150' | '600' | '1200' = '600'): string => {
+  if (DEMO_MODE) {
+    return getImageUrl(image.storageKey, size);
+  }
+  const thumbKey = image.thumbKeys?.[size] || image.thumbKeys?.['600'];
+  return thumbKey ? `/api/thumbnails/${thumbKey}` : '';
+};
 
 interface Viewer360Props {
   images: Image[];
@@ -146,9 +157,9 @@ export function Viewer360({ images, onImageClick }: Viewer360Props) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {currentImage?.thumbKeys?.['1200'] ? (
+        {(currentImage && (DEMO_MODE || currentImage.thumbKeys?.['1200'])) ? (
           <img
-            src={`/api/thumbnails/${currentImage.thumbKeys['1200']}`}
+            src={getThumbnailUrl(currentImage, '1200')}
             alt={`${currentAngle}°`}
             className="w-full h-full object-contain"
             draggable={false}
@@ -247,9 +258,9 @@ export function Viewer360({ images, onImageClick }: Viewer360Props) {
                     : 'border-transparent hover:border-gray-500'
                 }`}
               >
-                {image?.thumbKeys?.['150'] ? (
+                {(image && (DEMO_MODE || image.thumbKeys?.['150'])) ? (
                   <img
-                    src={`/api/thumbnails/${image.thumbKeys['150']}`}
+                    src={getThumbnailUrl(image, '150')}
                     alt={`${angle}°`}
                     className="w-full h-full object-cover rounded"
                   />
