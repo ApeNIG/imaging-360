@@ -1,28 +1,38 @@
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, CameraType } from 'expo-camera';
 import { api } from '@/services/api';
 import { uploadQueue } from '@/services/upload-queue';
 import type { Session } from '@360-imaging/shared';
 
 export default function CaptureScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [currentAngle, setCurrentAngle] = useState(0);
   const [capturedCount, setCapturedCount] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<Camera>(null);
 
   const totalFrames = session?.shotList?.studio360?.frameCount || 24;
   const angleStep = 360 / totalFrames;
 
   useEffect(() => {
-    loadSession();
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (sessionId) {
+      loadSession();
+    }
   }, [sessionId]);
 
   const loadSession = async () => {
+    if (!sessionId) return;
     try {
       const data = await api.getSession(sessionId);
       setSession(data);
@@ -33,7 +43,7 @@ export default function CaptureScreen() {
   };
 
   const handleCapture = async () => {
-    if (!cameraRef.current || isCapturing) return;
+    if (!cameraRef.current || isCapturing || !sessionId) return;
 
     setIsCapturing(true);
     try {
@@ -70,6 +80,7 @@ export default function CaptureScreen() {
   };
 
   const handleComplete = async () => {
+    if (!sessionId) return;
     try {
       await api.updateSession(sessionId, { status: 'complete' });
       Alert.alert('Complete', 'Session completed successfully', [
@@ -80,15 +91,21 @@ export default function CaptureScreen() {
     }
   };
 
-  if (!permission) {
+  if (hasPermission === null) {
     return <View style={styles.container} />;
   }
 
-  if (!permission.granted) {
+  if (hasPermission === false) {
     return (
       <View style={styles.permissionContainer}>
         <Text style={styles.permissionText}>Camera access is required</Text>
-        <Pressable style={styles.permissionButton} onPress={requestPermission}>
+        <Pressable
+          style={styles.permissionButton}
+          onPress={async () => {
+            const { status } = await Camera.requestCameraPermissionsAsync();
+            setHasPermission(status === 'granted');
+          }}
+        >
           <Text style={styles.permissionButtonText}>Grant Permission</Text>
         </Pressable>
       </View>
@@ -97,7 +114,7 @@ export default function CaptureScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
+      <Camera ref={cameraRef} style={styles.camera} type={CameraType.back}>
         {/* Angle indicator overlay */}
         <View style={styles.overlay}>
           <View style={styles.angleIndicator}>
@@ -129,7 +146,7 @@ export default function CaptureScreen() {
             <Text style={styles.doneText}>Done</Text>
           </Pressable>
         </View>
-      </CameraView>
+      </Camera>
     </View>
   );
 }

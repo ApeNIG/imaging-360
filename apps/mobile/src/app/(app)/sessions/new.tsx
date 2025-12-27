@@ -78,7 +78,7 @@ export default function NewSessionScreen() {
 
       <Text style={styles.label}>VIN</Text>
       <TextInput
-        style={[styles.input, vinError && styles.inputError]}
+        style={[styles.input, vinError ? styles.inputError : undefined]}
         value={vin}
         onChangeText={handleVinChange}
         placeholder="17-character VIN"
