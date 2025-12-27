@@ -4,6 +4,10 @@ import { logger } from './logger.js';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
+  ...(process.env.AWS_ENDPOINT && {
+    endpoint: process.env.AWS_ENDPOINT,
+    forcePathStyle: true,
+  }),
 });
 
 const BUCKET = process.env.S3_BUCKET!;

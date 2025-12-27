@@ -1,0 +1,58 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+build
+**/build
+.next
+**/.next
+
+# Development files
+.git
+.gitignore
+*.md
+!README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (use docker-compose env instead)
+.env
+.env.*
+!.env.example
+
+# Test files
+coverage
+**/*.test.ts
+**/*.spec.ts
+__tests__
+
+# Mobile app (not containerized)
+apps/mobile
+
+# Terraform state
+*.tfstate
+*.tfstate.*
+.terraform
+
+# Logs
+*.log
+logs
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Screenshots and local files
+ScreenGrab

@@ -11,6 +11,9 @@ import type { S3EventRecord } from '@360-imaging/shared';
 
 const sqsClient = new SQSClient({
   region: process.env.AWS_REGION || 'us-east-1',
+  ...(process.env.AWS_ENDPOINT && {
+    endpoint: process.env.AWS_ENDPOINT,
+  }),
 });
 
 const QUEUE_URL = process.env.SQS_QUEUE_URL!;
