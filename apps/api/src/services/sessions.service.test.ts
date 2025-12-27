@@ -7,7 +7,6 @@ import {
   getActiveSessionsForDevice,
 } from './sessions.service.js';
 import { NotFoundError } from '../middleware/error-handler.js';
-import { DEFAULT_SHOT_LIST } from '@360-imaging/shared';
 
 // Mock dependencies
 vi.mock('../db/index.js', () => ({
@@ -47,27 +46,25 @@ describe('Sessions Service', () => {
   const operatorId = '990e8400-e29b-41d4-a716-446655440004';
   const deviceId = 'device-123';
 
+  const mockShotList = {
+    studio360: { frameCount: 24, angleStep: 15 },
+    stills: [] as Array<{ name: string; required: boolean }>,
+  };
+
   const mockSession = {
     id: sessionId,
     orgId,
     siteId,
     vehicleId,
     mode: 'studio360' as const,
-    shotList: DEFAULT_SHOT_LIST,
+    shotList: mockShotList,
     operatorId,
     deviceId,
     startedAt: new Date(),
+    completedAt: undefined,
     status: 'active' as const,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
-
-  const mockSessionWithDetails = {
-    ...mockSession,
-    vehicle: { id: vehicleId, vin: '1HGBH41JXMN109186', stock: 'STK001' },
-    operator: { id: operatorId, name: 'Test Operator' },
-    site: { id: siteId, name: 'Test Site' },
-    imageCount: 5,
   };
 
   const mockVehicle = {
@@ -76,8 +73,17 @@ describe('Sessions Service', () => {
     siteId,
     vin: '1HGBH41JXMN109186',
     stock: 'STK001',
+    meta: {},
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+
+  const mockSessionWithDetails = {
+    ...mockSession,
+    vehicle: mockVehicle,
+    operator: { id: operatorId, name: 'Test Operator' },
+    site: { id: siteId, name: 'Test Site' },
+    imageCount: 5,
   };
 
   beforeEach(() => {

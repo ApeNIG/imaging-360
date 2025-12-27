@@ -35,8 +35,8 @@ describe('Events Service', () => {
     type: 'session_started' as const,
     actorId,
     actorType: 'user' as const,
-    message: null,
-    meta: null,
+    message: undefined as string | undefined,
+    meta: undefined as Record<string, unknown> | undefined,
     createdAt: new Date(),
   };
 
@@ -124,9 +124,9 @@ describe('Events Service', () => {
       vi.mocked(eventsRepository.createBatch).mockResolvedValue(3);
 
       const events = [
-        { entityType: 'session', entityId: sessionId, type: 'upload_started' },
-        { entityType: 'session', entityId: sessionId, type: 'upload_completed' },
-        { entityType: 'session', entityId: sessionId, type: 'qc_passed' },
+        { entityType: 'session' as const, entityId: sessionId, type: 'upload_started' as const },
+        { entityType: 'session' as const, entityId: sessionId, type: 'upload_complete' as const },
+        { entityType: 'session' as const, entityId: sessionId, type: 'qc_passed' as const },
       ];
 
       const result = await createBatchEvents({
@@ -168,9 +168,9 @@ describe('Events Service', () => {
 
       const events = [
         {
-          entityType: 'image',
+          entityType: 'image' as const,
           entityId: 'img-1',
-          type: 'published',
+          type: 'published' as const,
           message: 'Published by user',
           meta: { source: 'portal' },
         },
@@ -200,7 +200,7 @@ describe('Events Service', () => {
 
   describe('getEventsByEntity', () => {
     it('should return events for entity', async () => {
-      const events = [mockEvent, { ...mockEvent, id: 'event-2', type: 'session_completed' }];
+      const events = [mockEvent, { ...mockEvent, id: 'event-2', type: 'session_completed' as const }];
       vi.mocked(eventsRepository.findByEntity).mockResolvedValue(events);
 
       const result = await getEventsByEntity('session', sessionId, orgId);
@@ -227,9 +227,9 @@ describe('Events Service', () => {
   describe('getSessionTimeline', () => {
     it('should return session timeline events', async () => {
       const timelineEvents = [
-        { ...mockEvent, type: 'session_started' },
-        { ...mockEvent, id: 'event-2', type: 'upload_started' },
-        { ...mockEvent, id: 'event-3', type: 'upload_completed' },
+        { ...mockEvent, type: 'session_started' as const },
+        { ...mockEvent, id: 'event-2', type: 'upload_started' as const },
+        { ...mockEvent, id: 'event-3', type: 'upload_complete' as const },
       ];
       vi.mocked(eventsRepository.findSessionTimeline).mockResolvedValue(timelineEvents);
 
