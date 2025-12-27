@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/Login';
+import { CallbackPage } from '@/pages/Callback';
 import { SessionsPage } from '@/pages/Sessions';
 import { SessionDetailPage } from '@/pages/SessionDetail';
 
@@ -27,6 +28,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/callback" element={<CallbackPage />} />
       <Route
         path="/"
         element={

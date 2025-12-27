@@ -1,4 +1,5 @@
 import { signDeviceToken, signUserToken } from '../lib/jwt.js';
+import { verifyOidcToken } from '../lib/oidc.js';
 import { AppError } from '../middleware/error-handler.js';
 import { JWT_EXPIRY, HTTP_STATUS } from '@360-imaging/shared';
 import type { DeviceAuthRequest, DeviceAuthResponse, UserLoginResponse, Platform } from '@360-imaging/shared';
@@ -36,45 +37,40 @@ export async function authenticateDevice(params: DeviceAuthRequest): Promise<Dev
 }
 
 export async function authenticateUser(idToken: string): Promise<UserLoginResponse> {
-  // TODO: Implement OIDC token verification with configured provider
-  // For now, this is a placeholder. The OIDC provider must be configured
-  // in environment variables (OIDC_ISSUER, OIDC_CLIENT_ID, etc.)
+  // Verify the OIDC ID token
+  const tokenPayload = await verifyOidcToken(idToken);
 
-  const oidcIssuer = process.env.OIDC_ISSUER;
-  if (!oidcIssuer) {
+  // Get org ID from environment (single-tenant for now)
+  const orgId = process.env.DEFAULT_ORG_ID;
+  if (!orgId) {
     throw new AppError(
-      HTTP_STATUS.NOT_IMPLEMENTED,
-      'NOT_IMPLEMENTED',
-      'OIDC authentication not yet configured. Please set OIDC_ISSUER environment variable.'
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'CONFIG_ERROR',
+      'DEFAULT_ORG_ID not configured'
     );
   }
 
-  // In production, verify the idToken with the OIDC provider:
-  // const decoded = await verifyOidcToken(idToken, oidcIssuer);
-  // For now, we'll throw until OIDC is configured
+  // Look up user by email
+  const user = await usersRepository.findByEmailWithSiteAccess(tokenPayload.email, { orgId });
+  if (!user) {
+    logger.warn({ email: tokenPayload.email, orgId }, 'User login attempted but user not found');
+    throw new AppError(
+      HTTP_STATUS.FORBIDDEN,
+      'USER_NOT_FOUND',
+      'No account found for this email. Please contact your administrator.'
+    );
+  }
 
-  throw new AppError(
-    HTTP_STATUS.NOT_IMPLEMENTED,
-    'NOT_IMPLEMENTED',
-    'OIDC token verification not yet implemented. Configure your OIDC provider.'
-  );
+  logger.info({ userId: user.id, email: tokenPayload.email, orgId }, 'User authenticated via OIDC');
 
-  // Implementation pattern for when OIDC is ready:
-  // 1. Verify token with OIDC provider
-  // 2. Extract email from verified token
-  // 3. Look up user with site access
-  // 4. Generate app JWT
-  //
-  // const email = decoded.email;
-  // const orgId = decoded.org_id || process.env.DEFAULT_ORG_ID;
-  //
-  // const user = await usersRepository.findByEmailWithSiteAccess(email, { orgId });
-  // if (!user) {
-  //   throw new AppError(HTTP_STATUS.FORBIDDEN, 'USER_NOT_FOUND', 'User not found');
-  // }
-  //
-  // const accessToken = await signUserToken(user.id, user.orgId, user.siteIds, user.role);
-  // return { userId: user.id, accessToken, expiresIn: JWT_EXPIRY.USER };
+  // Generate internal JWT with user's role and site access
+  const accessToken = await signUserToken(user.id, user.orgId, user.siteIds, user.role);
+
+  return {
+    userId: user.id,
+    accessToken,
+    expiresIn: JWT_EXPIRY.USER,
+  };
 }
 
 /**

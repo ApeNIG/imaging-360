@@ -51,7 +51,7 @@ class ApiClient {
     return response.json();
   }
 
-  // Auth - In production, this would use OIDC
+  // Auth - Demo mode login (email/password form)
   async login(email: string, password: string) {
     if (DEMO_MODE) {
       await new Promise((r) => setTimeout(r, 500)); // Simulate network delay
@@ -64,6 +64,20 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+
+    this.setToken(response.accessToken);
+    return response;
+  }
+
+  // Auth - OIDC login with ID token from Auth0
+  async loginWithIdToken(idToken: string) {
+    const response = await this.fetch<{ accessToken: string; userId: string; expiresIn: number }>(
+      '/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      }
+    );
 
     this.setToken(response.accessToken);
     return response;

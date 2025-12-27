@@ -22,6 +22,10 @@ vi.mock('../lib/jwt.js', () => ({
   signUserToken: vi.fn(),
 }));
 
+vi.mock('../lib/oidc.js', () => ({
+  verifyOidcToken: vi.fn(),
+}));
+
 vi.mock('../lib/logger.js', () => ({
   logger: {
     info: vi.fn(),
@@ -32,8 +36,9 @@ vi.mock('../lib/logger.js', () => ({
 }));
 
 // Import mocked modules
-import { organizationsRepository, devicesRepository } from '../db/index.js';
-import { signDeviceToken } from '../lib/jwt.js';
+import { organizationsRepository, devicesRepository, usersRepository } from '../db/index.js';
+import { signDeviceToken, signUserToken } from '../lib/jwt.js';
+import { verifyOidcToken } from '../lib/oidc.js';
 
 describe('Auth Service', () => {
   beforeEach(() => {
@@ -147,34 +152,102 @@ describe('Auth Service', () => {
   describe('authenticateUser', () => {
     const originalEnv = process.env;
 
+    const mockTokenPayload = {
+      email: 'user@example.com',
+      sub: 'auth0|123456',
+      iss: 'https://auth.example.com/',
+      aud: 'client-id',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+    };
+
+    const mockUser = {
+      id: 'user-123',
+      orgId: 'org-456',
+      email: 'user@example.com',
+      name: 'Test User',
+      role: 'operator' as const,
+      siteIds: ['site-1', 'site-2'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
     beforeEach(() => {
       process.env = { ...originalEnv };
+      process.env.DEFAULT_ORG_ID = 'org-456';
     });
 
     afterEach(() => {
       process.env = originalEnv;
     });
 
-    it('should throw NOT_IMPLEMENTED when OIDC_ISSUER is not set', async () => {
-      delete process.env.OIDC_ISSUER;
+    it('should authenticate user successfully when token is valid and user exists', async () => {
+      const mockToken = 'mock.jwt.token';
 
-      await expect(authenticateUser('some-id-token')).rejects.toThrow(AppError);
-      await expect(authenticateUser('some-id-token')).rejects.toMatchObject({
-        statusCode: HTTP_STATUS.NOT_IMPLEMENTED,
-        code: 'NOT_IMPLEMENTED',
-        message: expect.stringContaining('OIDC authentication not yet configured'),
+      vi.mocked(verifyOidcToken).mockResolvedValue(mockTokenPayload);
+      vi.mocked(usersRepository.findByEmailWithSiteAccess).mockResolvedValue(mockUser);
+      vi.mocked(signUserToken).mockResolvedValue(mockToken);
+
+      const result = await authenticateUser('valid-id-token');
+
+      expect(verifyOidcToken).toHaveBeenCalledWith('valid-id-token');
+      expect(usersRepository.findByEmailWithSiteAccess).toHaveBeenCalledWith(
+        mockTokenPayload.email,
+        { orgId: 'org-456' }
+      );
+      expect(signUserToken).toHaveBeenCalledWith(
+        mockUser.id,
+        mockUser.orgId,
+        mockUser.siteIds,
+        mockUser.role
+      );
+
+      expect(result).toEqual({
+        userId: mockUser.id,
+        accessToken: mockToken,
+        expiresIn: JWT_EXPIRY.USER,
       });
     });
 
-    it('should throw NOT_IMPLEMENTED when OIDC_ISSUER is set but verification not implemented', async () => {
-      process.env.OIDC_ISSUER = 'https://auth.example.com';
+    it('should throw CONFIG_ERROR when DEFAULT_ORG_ID is not set', async () => {
+      delete process.env.DEFAULT_ORG_ID;
+      vi.mocked(verifyOidcToken).mockResolvedValue(mockTokenPayload);
 
-      await expect(authenticateUser('some-id-token')).rejects.toThrow(AppError);
-      await expect(authenticateUser('some-id-token')).rejects.toMatchObject({
-        statusCode: HTTP_STATUS.NOT_IMPLEMENTED,
-        code: 'NOT_IMPLEMENTED',
-        message: expect.stringContaining('OIDC token verification not yet implemented'),
+      await expect(authenticateUser('valid-id-token')).rejects.toThrow(AppError);
+      await expect(authenticateUser('valid-id-token')).rejects.toMatchObject({
+        statusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        code: 'CONFIG_ERROR',
       });
+    });
+
+    it('should throw USER_NOT_FOUND when user does not exist', async () => {
+      vi.mocked(verifyOidcToken).mockResolvedValue(mockTokenPayload);
+      vi.mocked(usersRepository.findByEmailWithSiteAccess).mockResolvedValue(null);
+
+      await expect(authenticateUser('valid-id-token')).rejects.toThrow(AppError);
+      await expect(authenticateUser('valid-id-token')).rejects.toMatchObject({
+        statusCode: HTTP_STATUS.FORBIDDEN,
+        code: 'USER_NOT_FOUND',
+      });
+
+      expect(signUserToken).not.toHaveBeenCalled();
+    });
+
+    it('should propagate OIDC verification errors', async () => {
+      const oidcError = new AppError(
+        HTTP_STATUS.UNAUTHORIZED,
+        'INVALID_TOKEN',
+        'Token has expired'
+      );
+      vi.mocked(verifyOidcToken).mockRejectedValue(oidcError);
+
+      await expect(authenticateUser('expired-token')).rejects.toThrow(AppError);
+      await expect(authenticateUser('expired-token')).rejects.toMatchObject({
+        statusCode: HTTP_STATUS.UNAUTHORIZED,
+        code: 'INVALID_TOKEN',
+      });
+
+      expect(usersRepository.findByEmailWithSiteAccess).not.toHaveBeenCalled();
     });
   });
 
