@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "360 Imaging",
+    "slug": "360-imaging",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "imaging360",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.imaging360.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app requires camera access to capture vehicle photos.",
+        "NSPhotoLibraryUsageDescription": "This app requires photo library access to save captured images."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.imaging360.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow 360 Imaging to access your camera for vehicle photography."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow 360 Imaging to access your photos.",
+          "savePhotosPermission": "Allow 360 Imaging to save photos."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      }
+    }
+  }
+}

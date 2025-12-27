@@ -1,0 +1,15 @@
+# Copy this to terraform.tfvars and customize
+
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "imaging-360"
+
+# Database
+db_instance_class    = "db.t3.micro"  # Use db.t3.medium+ for production
+db_allocated_storage = 20
+db_name              = "imaging"
+db_username          = "imaging_admin"
+
+# Worker
+worker_memory  = 2048  # MB
+worker_timeout = 120   # seconds
