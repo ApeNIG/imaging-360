@@ -1,4 +1,4 @@
-import type { SessionWithDetails, Image, PublishResponse } from '@360-imaging/shared';
+import type { SessionWithDetails, Image, PublishResponse, Site } from '@360-imaging/shared';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -30,7 +30,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${API_URL}/api${path}`, {
+    const response = await fetch(`${API_URL}/v1${path}`, {
       ...options,
       headers,
     });
@@ -87,6 +87,18 @@ class ApiClient {
     return this.fetch<PublishResponse>(`/images/${imageId}/publish`, {
       method: 'POST',
     });
+  }
+
+  async publishImages(imageIds: string[]): Promise<PublishResponse[]> {
+    const results = await Promise.all(
+      imageIds.map((id) => this.publishImage(id))
+    );
+    return results;
+  }
+
+  // Sites
+  async getSites(): Promise<{ data: Site[] }> {
+    return this.fetch<{ data: Site[] }>('/sites');
   }
 }
 

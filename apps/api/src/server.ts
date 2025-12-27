@@ -10,6 +10,7 @@ import { sessionsRouter } from './routes/sessions.js';
 import { presignRouter } from './routes/presign.js';
 import { imagesRouter } from './routes/images.js';
 import { eventsRouter } from './routes/events.js';
+import { sitesRouter } from './routes/sites.js';
 import { healthRouter } from './routes/health.js';
 
 export function createServer() {
@@ -38,6 +39,7 @@ export function createServer() {
   app.use('/v1/presign', presignRouter);
   app.use('/v1/images', imagesRouter);
   app.use('/v1/events', eventsRouter);
+  app.use('/v1/sites', sitesRouter);
 
   // Error handling
   app.use(errorHandler);

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { PORTAL_POLL_INTERVAL_MS } from '@360-imaging/shared';
 import type { SessionWithDetails, Image } from '@360-imaging/shared';
+import { Viewer360 } from '@/components/Viewer360';
 
 export function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -11,7 +12,33 @@ export function SessionDetailPage() {
   const [selectedImage, setSelectedImage] = useState<Image | null>(null);
   const [viewMode, setViewMode] = useState<'gallery' | '360'>('gallery');
   const [isLoading, setIsLoading] = useState(true);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const pollRef = useRef<NodeJS.Timeout>();
+
+  // Get publishable images (processed with pass or warn QC)
+  const publishableImages = images.filter((img) => {
+    if (img.status !== 'processed') return false;
+    const sharpness = img.qc?.sharpness?.status;
+    const exposure = img.qc?.exposure?.status;
+    return sharpness !== 'fail' && exposure !== 'fail';
+  });
+
+  const handleBulkPublish = async () => {
+    if (publishableImages.length === 0) return;
+
+    setIsPublishing(true);
+    setPublishError(null);
+
+    try {
+      await api.publishImages(publishableImages.map((img) => img.id));
+      loadImages();
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : 'Failed to publish images');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -139,6 +166,15 @@ export function SessionDetailPage() {
             >
               {session.status}
             </span>
+            {publishableImages.length > 0 && (
+              <button
+                onClick={handleBulkPublish}
+                disabled={isPublishing}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPublishing ? 'Publishing...' : `Publish All (${publishableImages.length})`}
+              </button>
+            )}
             {session.mode === 'studio360' && (
               <div className="flex rounded-md shadow-sm">
                 <button
@@ -165,6 +201,21 @@ export function SessionDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Error display */}
+        {publishError && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex justify-between items-center">
+            <span>{publishError}</span>
+            <button
+              onClick={() => setPublishError(null)}
+              className="text-red-700 hover:text-red-900"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Image Grid */}
@@ -194,8 +245,10 @@ export function SessionDetailPage() {
                 </span>
               )}
               {image.status === 'published' && (
-                <span className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
-                  Published
+                <span className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded" title={image.publishedAt ? new Date(image.publishedAt).toLocaleString() : ''}>
+                  {image.publishedAt
+                    ? `Published ${new Date(image.publishedAt).toLocaleDateString()}`
+                    : 'Published'}
                 </span>
               )}
             </div>
@@ -205,12 +258,10 @@ export function SessionDetailPage() {
 
       {/* 360 View */}
       {viewMode === '360' && (
-        <div className="bg-white rounded-lg shadow p-8">
-          <div className="text-center text-gray-500">
-            360 Viewer - Drag to rotate
-            {/* TODO: Implement 360 viewer component */}
-          </div>
-        </div>
+        <Viewer360
+          images={images}
+          onImageClick={(image) => setSelectedImage(image)}
+        />
       )}
 
       {/* Image Modal */}
@@ -242,6 +293,11 @@ export function SessionDetailPage() {
                 <p className="text-sm text-gray-500">
                   QC: Sharpness {selectedImage.qc?.sharpness?.score || 'N/A'} •
                   Status: {selectedImage.status}
+                  {selectedImage.status === 'published' && selectedImage.publishedAt && (
+                    <span className="text-green-600 ml-2">
+                      • Published {new Date(selectedImage.publishedAt).toLocaleString()}
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex space-x-2">
@@ -252,6 +308,11 @@ export function SessionDetailPage() {
                   >
                     Publish
                   </button>
+                )}
+                {selectedImage.status === 'published' && (
+                  <span className="px-4 py-2 bg-green-100 text-green-800 rounded-md">
+                    Published
+                  </span>
                 )}
                 <button
                   onClick={() => setSelectedImage(null)}

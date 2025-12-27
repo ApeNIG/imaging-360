@@ -8,30 +8,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Mobile app** (React Native/Expo) — studio360, walk360, stills capture
 - **Backend API** (Express/TypeScript) — auth, sessions, presign, events, images
 - **Portal** (React/Vite) — session management, gallery, 360 viewer, publish workflow
-- **Workers** — thumbnail generation, QC, deduplication
+- **Worker** (Node/TypeScript) — SQS consumer, thumbnail generation, QC, deduplication
 - **Infrastructure** (Terraform) — S3, SQS, RDS PostgreSQL, IAM
 
 ## Monorepo Structure
 
 ```
-360-auto-construct/
-├── apps/
-│   ├── api/          # Express backend
-│   ├── mobile/       # React Native (Expo)
-│   └── portal/       # React + Vite
-├── packages/
-│   └── shared/       # Types, constants, validation
-├── infra/
-│   └── terraform/    # AWS infrastructure
-├── db/
-│   └── migrations/   # SQL migrations
-└── docs/             # Architecture, API, data model, tickets
+apps/
+├── api/           # Express backend (port 3000)
+├── mobile/        # React Native (Expo)
+├── portal/        # React + Vite (port 5173)
+└── worker/        # SQS consumer + image pipeline
+packages/
+└── shared/        # Types, constants, validation (ESM)
+infra/terraform/   # AWS infrastructure
+db/migrations/     # SQL migrations
+docs/              # Architecture, API, data model, tickets
 ```
 
 ## Development Commands
 
 ```bash
-# Install dependencies (uses pnpm)
+# Install dependencies (uses pnpm workspaces)
 pnpm install
 
 # Run all apps in development
@@ -41,9 +39,15 @@ pnpm dev
 pnpm --filter @360-imaging/api dev
 pnpm --filter @360-imaging/portal dev
 pnpm --filter @360-imaging/mobile dev
+pnpm --filter @360-imaging/worker dev
 
 # Build all
 pnpm build
+
+# Run tests (all or single package)
+pnpm test
+pnpm --filter @360-imaging/api test
+pnpm --filter @360-imaging/api test -- src/services/auth.service.test.ts
 
 # Run database migration
 pnpm db:migrate
@@ -86,9 +90,10 @@ Use these via the Task tool for domain-specific work:
 ## Architecture Principles
 
 ### Multi-Tenant Scoping
-- All queries include `org_id` scope
+- All queries include `org_id` scope via repository pattern
 - Site-specific resources scoped to `org_id` AND `site_id`
 - Row-level security enabled in PostgreSQL
+- Use `BaseRepository` methods — never write raw queries without org_id
 
 ### Idempotency
 - Every write operation needs an idempotency key
@@ -114,11 +119,18 @@ s3://imaging-{env}/
 | File | Purpose |
 |------|---------|
 | `packages/shared/src/types/index.ts` | All TypeScript types |
-| `packages/shared/src/constants.ts` | Shared constants |
-| `apps/api/src/server.ts` | API entry point |
+| `packages/shared/src/constants.ts` | Shared constants (QC thresholds, HTTP status) |
+| `apps/api/src/db/repositories/base.repository.ts` | Base repo with org_id scoping |
 | `apps/api/src/middleware/auth.ts` | JWT auth middleware |
-| `apps/mobile/src/services/upload-queue.ts` | Offline upload queue |
-| `db/migrations/001_initial_schema.sql` | Database schema |
+| `apps/worker/src/consumer.ts` | SQS long-poll consumer |
+| `apps/worker/src/pipeline/index.ts` | Image processing orchestrator |
+| `db/migrations/001_initial_schema.sql` | Database schema with RLS |
+
+### Worker Pipeline
+- S3 event → SQS → Worker consumer (long-poll, 5 concurrent)
+- Pipeline stages: thumbnails → QC (sharpness/exposure) → dedup → save
+- Uses sharp for image processing
+- Graceful shutdown on SIGTERM/SIGINT
 
 ## Canonical Documentation
 

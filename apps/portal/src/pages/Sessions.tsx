@@ -1,20 +1,45 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
-import type { SessionWithDetails } from '@360-imaging/shared';
+import type { SessionWithDetails, Site } from '@360-imaging/shared';
 
 export function SessionsPage() {
   const [sessions, setSessions] = useState<SessionWithDetails[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    loadSites();
     loadSessions();
   }, []);
 
-  const loadSessions = async () => {
+  useEffect(() => {
+    loadSessions();
+  }, [selectedSiteId]);
+
+  const loadSites = async () => {
     try {
-      const response = await api.getSessions();
-      setSessions(response.data);
+      const response = await api.getSites();
+      setSites(response.data);
+    } catch (error) {
+      console.error('Failed to load sites:', error);
+    }
+  };
+
+  const loadSessions = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.getSessions(
+        selectedSiteId ? { siteId: selectedSiteId } : undefined
+      );
+      // Sort: active sessions first, then by startedAt descending
+      const sorted = [...response.data].sort((a, b) => {
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (a.status !== 'active' && b.status === 'active') return 1;
+        return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+      });
+      setSessions(sorted);
     } catch (error) {
       console.error('Failed to load sessions:', error);
     } finally {
@@ -49,12 +74,26 @@ export function SessionsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Sessions</h1>
-        <button
-          onClick={loadSessions}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center space-x-4">
+          <select
+            value={selectedSiteId}
+            onChange={(e) => setSelectedSiteId(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Sites</option>
+            {sites.map((site) => (
+              <option key={site.id} value={site.id}>
+                {site.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={loadSessions}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {sessions.length === 0 ? (
@@ -71,6 +110,9 @@ export function SessionsPage() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Mode
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Site
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -99,6 +141,9 @@ export function SessionsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {session.mode}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {session.site?.name || 'Unknown'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
