@@ -1,88 +1,98 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query, withOrgContext } from '../db/index.js';
 import { signDeviceToken, signUserToken } from '../lib/jwt.js';
-import { AppError, NotFoundError } from '../middleware/error-handler.js';
+import { AppError } from '../middleware/error-handler.js';
 import { JWT_EXPIRY, HTTP_STATUS } from '@360-imaging/shared';
-import type { DeviceAuthRequest, DeviceAuthResponse, UserLoginResponse } from '@360-imaging/shared';
+import type { DeviceAuthRequest, DeviceAuthResponse, UserLoginResponse, Platform } from '@360-imaging/shared';
+import { organizationsRepository, devicesRepository, usersRepository } from '../db/index.js';
+import { logger } from '../lib/logger.js';
 
 export async function authenticateDevice(params: DeviceAuthRequest): Promise<DeviceAuthResponse> {
   const { orgId, platform, model, appVersion } = params;
 
   // Verify org exists
-  const orgResult = await query<{ id: string }>('SELECT id FROM organizations WHERE id = $1', [orgId]);
-
-  if (orgResult.rowCount === 0) {
+  const orgExists = await organizationsRepository.exists(orgId);
+  if (!orgExists) {
+    logger.warn({ orgId }, 'Device auth attempted with invalid org');
     throw new AppError(HTTP_STATUS.BAD_REQUEST, 'INVALID_ORG', 'Organization not found');
   }
 
-  // Upsert device
-  const deviceId = uuidv4();
-  const result = await query<{ id: string }>(
-    `INSERT INTO devices (id, org_id, platform, model, app_version, last_seen)
-     VALUES ($1, $2, $3, $4, $5, now())
-     ON CONFLICT (id) DO UPDATE SET
-       app_version = EXCLUDED.app_version,
-       last_seen = now()
-     RETURNING id`,
-    [deviceId, orgId, platform, model, appVersion]
+  // Find or create device
+  const device = await devicesRepository.findOrCreate(
+    orgId,
+    platform as Platform,
+    model,
+    appVersion
   );
 
-  const finalDeviceId = result.rows[0].id;
-  const accessToken = await signDeviceToken(finalDeviceId, orgId);
+  logger.info({ deviceId: device.id, orgId, platform }, 'Device authenticated');
+
+  // Generate JWT
+  const accessToken = await signDeviceToken(device.id, orgId);
 
   return {
-    deviceId: finalDeviceId,
+    deviceId: device.id,
     accessToken,
     expiresIn: JWT_EXPIRY.DEVICE,
   };
 }
 
 export async function authenticateUser(idToken: string): Promise<UserLoginResponse> {
-  // TODO: Implement OIDC token verification
-  // For now, this is a placeholder that should be replaced with actual OIDC verification
-  // using the configured OIDC provider (Auth0, Cognito, etc.)
+  // TODO: Implement OIDC token verification with configured provider
+  // For now, this is a placeholder. The OIDC provider must be configured
+  // in environment variables (OIDC_ISSUER, OIDC_CLIENT_ID, etc.)
 
-  // 1. Verify the idToken with the OIDC provider
-  // 2. Extract email and other claims from the token
-  // 3. Look up the user in our database
+  const oidcIssuer = process.env.OIDC_ISSUER;
+  if (!oidcIssuer) {
+    throw new AppError(
+      HTTP_STATUS.NOT_IMPLEMENTED,
+      'NOT_IMPLEMENTED',
+      'OIDC authentication not yet configured. Please set OIDC_ISSUER environment variable.'
+    );
+  }
 
-  // Placeholder: In production, decode and verify the OIDC token
-  // const decoded = await verifyOidcToken(idToken);
-  // const email = decoded.email;
+  // In production, verify the idToken with the OIDC provider:
+  // const decoded = await verifyOidcToken(idToken, oidcIssuer);
+  // For now, we'll throw until OIDC is configured
 
   throw new AppError(
     HTTP_STATUS.NOT_IMPLEMENTED,
     'NOT_IMPLEMENTED',
-    'OIDC authentication not yet configured. Please set up your OIDC provider.'
+    'OIDC token verification not yet implemented. Configure your OIDC provider.'
   );
 
-  // Example implementation once OIDC is configured:
-  /*
-  const userResult = await query<{ id: string; org_id: string; role: string }>(
-    'SELECT id, org_id, role FROM users WHERE email = $1',
-    [email]
-  );
+  // Implementation pattern for when OIDC is ready:
+  // 1. Verify token with OIDC provider
+  // 2. Extract email from verified token
+  // 3. Look up user with site access
+  // 4. Generate app JWT
+  //
+  // const email = decoded.email;
+  // const orgId = decoded.org_id || process.env.DEFAULT_ORG_ID;
+  //
+  // const user = await usersRepository.findByEmailWithSiteAccess(email, { orgId });
+  // if (!user) {
+  //   throw new AppError(HTTP_STATUS.FORBIDDEN, 'USER_NOT_FOUND', 'User not found');
+  // }
+  //
+  // const accessToken = await signUserToken(user.id, user.orgId, user.siteIds, user.role);
+  // return { userId: user.id, accessToken, expiresIn: JWT_EXPIRY.USER };
+}
 
-  if (userResult.rowCount === 0) {
-    throw new AppError(HTTP_STATUS.FORBIDDEN, 'USER_NOT_FOUND', 'User not found in any organization');
-  }
+/**
+ * Refresh a device token (called when approaching expiry)
+ */
+export async function refreshDeviceToken(
+  deviceId: string,
+  orgId: string
+): Promise<DeviceAuthResponse> {
+  // Verify device exists and update last_seen
+  await devicesRepository.updateLastSeen(deviceId, orgId);
 
-  const user = userResult.rows[0];
-
-  // Get user's site access
-  const sitesResult = await query<{ site_id: string }>(
-    'SELECT site_id FROM user_site_access WHERE user_id = $1',
-    [user.id]
-  );
-
-  const siteIds = sitesResult.rows.map(r => r.site_id);
-
-  const accessToken = await signUserToken(user.id, user.org_id, siteIds, user.role);
+  // Generate new token
+  const accessToken = await signDeviceToken(deviceId, orgId);
 
   return {
-    userId: user.id,
+    deviceId,
     accessToken,
-    expiresIn: JWT_EXPIRY.USER,
+    expiresIn: JWT_EXPIRY.DEVICE,
   };
-  */
 }

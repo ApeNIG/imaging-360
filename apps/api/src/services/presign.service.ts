@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
-import { query } from '../db/index.js';
 import { createPresignedUploadUrl } from '../lib/s3.js';
 import { NotFoundError, AppError } from '../middleware/error-handler.js';
 import { HTTP_STATUS } from '@360-imaging/shared';
 import type { PresignResponse } from '@360-imaging/shared';
+import { sessionsRepository, eventsRepository } from '../db/index.js';
+import { logger } from '../lib/logger.js';
 
 interface CreatePresignedUrlParams {
   orgId: string;
@@ -11,39 +12,52 @@ interface CreatePresignedUrlParams {
   fileName: string;
   contentType: 'image/jpeg' | 'image/heic';
   contentSha256: string;
+  deviceId?: string;
 }
 
 export async function createPresignedUrl(params: CreatePresignedUrlParams): Promise<PresignResponse> {
-  const { orgId, sessionId, fileName, contentType, contentSha256 } = params;
+  const { orgId, sessionId, fileName, contentType, contentSha256, deviceId } = params;
 
   // Verify session exists and belongs to org
-  const sessionResult = await query<{ site_id: string; status: string }>(
-    'SELECT site_id, status FROM sessions WHERE id = $1 AND org_id = $2',
-    [sessionId, orgId]
-  );
+  const session = await sessionsRepository.findById(sessionId, { orgId });
 
-  if (sessionResult.rowCount === 0) {
+  if (!session) {
     throw new NotFoundError('Session');
   }
-
-  const session = sessionResult.rows[0];
 
   if (session.status !== 'active') {
     throw new AppError(HTTP_STATUS.BAD_REQUEST, 'SESSION_NOT_ACTIVE', 'Session is not active');
   }
 
-  // Generate unique filename
+  // Generate unique filename with extension
   const ext = contentType === 'image/heic' ? 'heic' : 'jpg';
   const uniqueFilename = `${uuidv4()}.${ext}`;
 
   const result = await createPresignedUploadUrl({
     orgId,
-    siteId: session.site_id,
+    siteId: session.siteId,
     sessionId,
     filename: uniqueFilename,
     contentType,
     contentSha256,
   });
+
+  // Log upload initiation event
+  await eventsRepository.create({
+    orgId,
+    entityType: 'session',
+    entityId: sessionId,
+    type: 'upload_started',
+    actorId: deviceId,
+    actorType: deviceId ? 'device' : 'system',
+    meta: {
+      fileName,
+      contentType,
+      storageKey: result.storageKey,
+    },
+  });
+
+  logger.debug({ sessionId, storageKey: result.storageKey }, 'Presigned URL generated');
 
   return {
     uploadUrl: result.uploadUrl,

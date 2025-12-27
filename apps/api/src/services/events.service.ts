@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../db/index.js';
-import type { CreateEventRequest, ActorType } from '@360-imaging/shared';
+import type { CreateEventRequest, ActorType, EntityType, EventType } from '@360-imaging/shared';
+import { eventsRepository } from '../db/index.js';
+import { logger } from '../lib/logger.js';
 
 interface CreateEventParams extends CreateEventRequest {
   orgId: string;
@@ -18,49 +18,57 @@ interface CreateBatchEventsParams {
 export async function createEvent(params: CreateEventParams) {
   const { orgId, entityType, entityId, type, actorId, actorType, message, meta } = params;
 
-  const eventId = uuidv4();
+  const event = await eventsRepository.create({
+    orgId,
+    entityType: entityType as EntityType,
+    entityId,
+    type: type as EventType,
+    actorId,
+    actorType,
+    message,
+    meta,
+  });
 
-  await query(
-    `INSERT INTO events (id, org_id, entity_type, entity_id, type, actor_id, actor_type, message, meta)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [eventId, orgId, entityType, entityId, type, actorId, actorType, message || null, meta ? JSON.stringify(meta) : null]
-  );
+  logger.debug({ eventId: event.id, entityType, type }, 'Event created');
 
-  return { id: eventId };
+  return { id: event.id };
 }
 
 export async function createBatchEvents(params: CreateBatchEventsParams) {
   const { orgId, actorId, actorType, events } = params;
 
-  // Build batch insert
-  const values: unknown[] = [];
-  const valuePlaceholders: string[] = [];
-  let paramIndex = 1;
-
-  for (const event of events) {
-    const eventId = uuidv4();
-    valuePlaceholders.push(
-      `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`
-    );
-    values.push(
-      eventId,
-      orgId,
-      event.entityType,
-      event.entityId,
-      event.type,
-      actorId,
-      actorType,
-      event.message || null,
-      event.meta ? JSON.stringify(event.meta) : null
-    );
-    paramIndex += 9;
+  if (events.length === 0) {
+    return { accepted: 0 };
   }
 
-  await query(
-    `INSERT INTO events (id, org_id, entity_type, entity_id, type, actor_id, actor_type, message, meta)
-     VALUES ${valuePlaceholders.join(', ')}`,
-    values
-  );
+  const mappedEvents = events.map((e) => ({
+    orgId,
+    entityType: e.entityType as EntityType,
+    entityId: e.entityId,
+    type: e.type as EventType,
+    actorId,
+    actorType,
+    message: e.message,
+    meta: e.meta,
+  }));
 
-  return { accepted: events.length };
+  const count = await eventsRepository.createBatch(mappedEvents);
+
+  logger.info({ count, actorId }, 'Batch events created');
+
+  return { accepted: count };
+}
+
+export async function getEventsByEntity(
+  entityType: EntityType,
+  entityId: string,
+  orgId: string
+) {
+  const events = await eventsRepository.findByEntity(entityType, entityId, { orgId });
+  return { data: events, total: events.length };
+}
+
+export async function getSessionTimeline(sessionId: string, orgId: string) {
+  const events = await eventsRepository.findSessionTimeline(sessionId, { orgId });
+  return { data: events, total: events.length };
 }

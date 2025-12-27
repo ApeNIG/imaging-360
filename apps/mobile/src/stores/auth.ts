@@ -10,10 +10,13 @@ interface AuthState {
   isLoading: boolean;
   deviceId: string | null;
   error: string | null;
+  isOnline: boolean;
 
   initialize: () => Promise<void>;
   authenticateDevice: () => Promise<void>;
   logout: () => Promise<void>;
+  setOnlineStatus: (online: boolean) => void;
+  checkConnection: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -21,21 +24,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   deviceId: null,
   error: null,
+  isOnline: true,
 
   initialize: async () => {
     try {
-      // Load existing token
+      // Load existing token (handles refresh if needed)
       const token = await api.loadToken();
+      const deviceId = api.getDeviceId();
 
       if (token) {
-        set({ isAuthenticated: true, isLoading: false });
+        set({
+          isAuthenticated: true,
+          deviceId,
+          isLoading: false,
+        });
 
         // Initialize upload queue
         await uploadQueue.initialize();
+
+        // Check online status
+        const isOnline = await api.healthCheck();
+        set({ isOnline });
       } else {
         set({ isAuthenticated: false, isLoading: false });
       }
     } catch (error) {
+      console.error('Auth initialization error:', error);
       set({ isAuthenticated: false, isLoading: false });
     }
   },
@@ -64,13 +78,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         deviceId: response.deviceId,
         isLoading: false,
+        isOnline: true,
         error: null,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Authentication failed';
+      console.error('Device auth error:', message);
+
       set({
         isAuthenticated: false,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Authentication failed',
+        error: message,
       });
       throw error;
     }
@@ -83,5 +101,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       deviceId: null,
       error: null,
     });
+  },
+
+  setOnlineStatus: (online: boolean) => {
+    set({ isOnline: online });
+  },
+
+  checkConnection: async () => {
+    const isOnline = await api.healthCheck();
+    set({ isOnline });
+    return isOnline;
   },
 }));

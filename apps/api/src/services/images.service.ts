@@ -1,11 +1,13 @@
-import { query } from '../db/index.js';
-import { NotFoundError } from '../middleware/error-handler.js';
-import type { Image, PublishResponse } from '@360-imaging/shared';
+import { NotFoundError, AppError } from '../middleware/error-handler.js';
+import { HTTP_STATUS } from '@360-imaging/shared';
+import type { Image, ImageStatus, PublishResponse } from '@360-imaging/shared';
+import { imagesRepository, sessionsRepository, eventsRepository } from '../db/index.js';
+import { logger } from '../lib/logger.js';
 
 interface ListImagesParams {
   orgId: string;
   sessionId: string;
-  status?: string;
+  status?: ImageStatus;
 }
 
 interface GetImageParams {
@@ -16,111 +18,128 @@ interface GetImageParams {
 interface PublishImageParams {
   imageId: string;
   orgId: string;
+  userId?: string;
 }
 
 export async function listImages(params: ListImagesParams) {
   const { orgId, sessionId, status } = params;
 
-  let whereClause = 'WHERE org_id = $1 AND session_id = $2';
-  const queryParams: unknown[] = [orgId, sessionId];
-
-  if (status) {
-    whereClause += ' AND status = $3';
-    queryParams.push(status);
-  }
-
-  // Get session mode to determine sort order
-  const sessionResult = await query<{ mode: string }>(
-    'SELECT mode FROM sessions WHERE id = $1 AND org_id = $2',
-    [sessionId, orgId]
-  );
-
-  if (sessionResult.rowCount === 0) {
+  // Verify session exists
+  const session = await sessionsRepository.findById(sessionId, { orgId });
+  if (!session) {
     throw new NotFoundError('Session');
   }
 
-  const isStudio360 = sessionResult.rows[0].mode === 'studio360';
-  const orderBy = isStudio360 ? 'angle_deg ASC NULLS LAST' : 'created_at ASC';
-
-  const result = await query<Image>(
-    `SELECT * FROM images ${whereClause} ORDER BY ${orderBy}`,
-    queryParams
+  const images = await imagesRepository.findFiltered(
+    { orgId },
+    { sessionId, status }
   );
 
+  const statusCounts = await imagesRepository.countByStatusForSession(sessionId, { orgId });
+
   return {
-    data: result.rows.map(mapImageRow),
-    total: result.rowCount,
+    data: images,
+    total: images.length,
+    statusCounts,
   };
 }
 
-export async function getImage(params: GetImageParams) {
+export async function getImage(params: GetImageParams): Promise<Image> {
   const { imageId, orgId } = params;
 
-  const result = await query<Image>(
-    'SELECT * FROM images WHERE id = $1 AND org_id = $2',
-    [imageId, orgId]
-  );
+  const image = await imagesRepository.findById(imageId, { orgId });
 
-  if (result.rowCount === 0) {
+  if (!image) {
     throw new NotFoundError('Image');
   }
 
-  return mapImageRow(result.rows[0]);
+  return image;
 }
 
 export async function publishImage(params: PublishImageParams): Promise<PublishResponse> {
-  const { imageId, orgId } = params;
+  const { imageId, orgId, userId } = params;
 
-  const result = await query<{ id: string; published_at: Date }>(
-    `UPDATE images
-     SET status = 'published', published_at = now()
-     WHERE id = $1 AND org_id = $2 AND status = 'processed'
-     RETURNING id, published_at`,
-    [imageId, orgId]
-  );
+  // Get image first to check status
+  const image = await imagesRepository.findById(imageId, { orgId });
 
-  if (result.rowCount === 0) {
-    // Check if image exists
-    const exists = await query(
-      'SELECT id, status FROM images WHERE id = $1 AND org_id = $2',
-      [imageId, orgId]
-    );
-
-    if (exists.rowCount === 0) {
-      throw new NotFoundError('Image');
-    }
-
-    // Image exists but is in wrong status
-    throw new NotFoundError('Image (not in processed status)');
+  if (!image) {
+    throw new NotFoundError('Image');
   }
 
+  if (image.status !== 'processed') {
+    throw new AppError(
+      HTTP_STATUS.BAD_REQUEST,
+      'INVALID_STATUS',
+      `Cannot publish image with status '${image.status}'. Must be 'processed'.`
+    );
+  }
+
+  const published = await imagesRepository.publish(imageId, { orgId });
+
+  if (!published) {
+    throw new NotFoundError('Image');
+  }
+
+  // Log publish event
+  await eventsRepository.create({
+    orgId,
+    entityType: 'image',
+    entityId: imageId,
+    type: 'published',
+    actorId: userId,
+    actorType: userId ? 'user' : 'system',
+  });
+
+  logger.info({ imageId, userId }, 'Image published');
+
   return {
-    id: result.rows[0].id,
+    id: published.id,
     status: 'published',
-    publishedAt: result.rows[0].published_at,
+    publishedAt: published.publishedAt!,
   };
 }
 
-function mapImageRow(row: any): Image {
-  return {
-    id: row.id,
-    orgId: row.org_id,
-    siteId: row.site_id,
-    sessionId: row.session_id,
-    vehicleId: row.vehicle_id,
-    angleDeg: row.angle_deg,
-    shotName: row.shot_name,
-    hashSha256: row.hash_sha256,
-    phash: row.phash,
-    width: row.width,
-    height: row.height,
-    exif: row.exif,
-    storageKey: row.storage_key,
-    thumbKeys: row.thumb_keys,
-    qc: row.qc,
-    qcVersion: row.qc_version,
-    status: row.status,
-    createdAt: row.created_at,
-    publishedAt: row.published_at,
-  };
+export async function bulkPublish(
+  imageIds: string[],
+  orgId: string,
+  userId?: string
+): Promise<{ published: number; failed: string[] }> {
+  const failed: string[] = [];
+  let published = 0;
+
+  // Validate all images first
+  for (const id of imageIds) {
+    const image = await imagesRepository.findById(id, { orgId });
+    if (!image || image.status !== 'processed') {
+      failed.push(id);
+    }
+  }
+
+  const validIds = imageIds.filter((id) => !failed.includes(id));
+
+  if (validIds.length > 0) {
+    published = await imagesRepository.bulkPublish(validIds, { orgId });
+
+    // Log bulk publish event
+    await eventsRepository.create({
+      orgId,
+      entityType: 'session',
+      entityId: validIds[0], // Use first image's session
+      type: 'published',
+      actorId: userId,
+      actorType: userId ? 'user' : 'system',
+      meta: { count: published, imageIds: validIds },
+    });
+  }
+
+  logger.info({ published, failed: failed.length, userId }, 'Bulk publish completed');
+
+  return { published, failed };
+}
+
+export async function getImagesBySession(
+  sessionId: string,
+  orgId: string
+): Promise<Image[]> {
+  return imagesRepository.findBySession(sessionId, { orgId });
 }
